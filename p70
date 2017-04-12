@@ -1,0 +1,131 @@
+#!/bin/bash
+
+# 判断是否是Mac
+is_mac(){
+	uname=`uname`
+	if [ "X${uname}" == "XDarwin" ]; then
+		return 0 # is mac
+	else
+		return 1 # not is mac
+	fi
+}
+
+# Installation PREFIX
+PREFIX="/usr/local"
+
+# 检测是否私有具有 root 权限
+if [ $UID -ne 0 ]; then
+	echo "You do not have permission, Please run the command as root!"
+	exit 0
+fi
+
+set -e
+
+# Only start if we can find the php.
+test -x $PREFIX || exit 0
+
+# 可能是使用包管理工具安装的PHP, 或者未安装, 则不适用该管理脚本
+test -x $PREFIX/sbin/php-fpm || exit 0
+
+# 是否运行
+is_running(){
+	if is_mac ; then
+		pid=`ps -u root -o pid,args | awk '/\/usr\/local\/sbin\/php-fpm -D/ {print $1}'`
+	else
+		# 1234 php-fpm: master process (/usr/local/etc/php/php-fpm.conf)
+		pid=`ps -u root -o pid,args | awk '/\/usr\/local\/etc\/php\/php-fpm.conf/ {print $1}'`
+	fi
+
+	if [ "X${pid}" != "X" ]; then
+		return 0 # running
+	else
+		return 1 # not running
+	fi
+}
+
+# 状态
+status(){
+	if is_running ; then
+		echo "PHP7 is running ..."
+		echo "pid:$pid"
+		echo ""
+		echo "child processes:"
+		echo -n "	total:"
+		lsof -u www-data | grep "php-fpm.sock" | wc -l
+		lsof -u www-data | grep "php-fpm.sock"
+	else
+		echo "PHP7 is not running ..."
+	fi
+}
+
+# 启动
+start(){
+	if is_running ; then
+		echo "PHP7 is already running..."
+		exit 0
+	fi
+	echo -n "Starting PHP7 :"
+	# 通过 -D 选项等待启动完成，否则反复重启出现重复启动的问题。
+	(cd "$PREFIX" && $PREFIX/sbin/php-fpm -D)
+	echo "ok"
+}
+
+# 停止
+stop(){
+	if ! is_running; then
+		echo "PHP7 is not running..."
+		exit 0
+	fi
+	echo -n "Stopping PHP7 :"
+	# 安全平滑停止
+	kill -INT $pid
+	echo "ok"
+}
+
+case $1 in
+	# 英文启动
+	start)
+		start
+	;;
+	# 英文停止
+	stop)
+		stop
+	;;
+	# 英文重启
+	restart)
+		stop
+		sleep 1
+		start
+	;;
+	# 英文状态
+	status)
+		status
+	;;
+
+	# 拼音启动
+	q)
+		start
+	;;
+	# 拼音停止
+	t)
+		stop
+	;;
+	# 拼音重启
+	c)
+		stop
+		sleep 1
+		start
+	;;
+	# 拼音状态
+	z)
+		status
+	;;
+
+	*)
+	# Print help
+		echo "Usage:$0 {start|stop|status|restart}" 1>&2
+		exit 0
+	;;
+esac
+
+exit 0
